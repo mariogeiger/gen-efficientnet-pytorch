@@ -91,6 +91,14 @@ def drop_connect(inputs, training: bool = False, drop_connect_rate: float = 0.):
     return output
 
 
+class MergeResidual(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x, residual):
+        return x + residual
+
+
 class SqueezeExcite(nn.Module):
     __constants__ = ['gate_fn']
 
@@ -162,6 +170,8 @@ class DepthwiseSeparableConv(nn.Module):
         self.bn2 = norm_layer(out_chs, **norm_kwargs)
         self.act2 = act_layer(inplace=True) if pw_act else nn.Identity()
 
+        self.merge_residual = MergeResidual()
+
     def forward(self, x):
         residual = x
 
@@ -178,7 +188,7 @@ class DepthwiseSeparableConv(nn.Module):
         if self.has_residual:
             if self.drop_connect_rate > 0.:
                 x = drop_connect(x, self.training, self.drop_connect_rate)
-            x += residual
+            x = self.merge_residual(x, residual)
         return x
 
 
@@ -220,6 +230,8 @@ class InvertedResidual(nn.Module):
         self.conv_pwl = select_conv2d(mid_chs, out_chs, pw_kernel_size, padding=pad_type, **conv_kwargs)
         self.bn3 = norm_layer(out_chs, **norm_kwargs)
 
+        self.merge_residual = MergeResidual()
+
     def forward(self, x):
         residual = x
 
@@ -243,7 +255,7 @@ class InvertedResidual(nn.Module):
         if self.has_residual:
             if self.drop_connect_rate > 0.:
                 x = drop_connect(x, self.training, self.drop_connect_rate)
-            x += residual
+            x = self.merge_residual(x, residual)
         return x
 
 
@@ -267,6 +279,7 @@ class CondConvResidual(InvertedResidual):
             drop_connect_rate=drop_connect_rate)
 
         self.routing_fn = nn.Linear(in_chs, self.num_experts)
+        self.merge_residual = MergeResidual()
 
     def forward(self, x):
         residual = x
@@ -295,7 +308,7 @@ class CondConvResidual(InvertedResidual):
         if self.has_residual:
             if self.drop_connect_rate > 0.:
                 x = drop_connect(x, self.training, self.drop_connect_rate)
-            x += residual
+            x = self.merge_residual(x, residual)
         return x
 
 
@@ -328,6 +341,8 @@ class EdgeResidual(nn.Module):
         self.conv_pwl = select_conv2d(mid_chs, out_chs, pw_kernel_size, stride=stride, padding=pad_type)
         self.bn2 = nn.BatchNorm2d(out_chs, **norm_kwargs)
 
+        self.merge_residual = MergeResidual()
+
     def forward(self, x):
         residual = x
 
@@ -346,7 +361,7 @@ class EdgeResidual(nn.Module):
         if self.has_residual:
             if self.drop_connect_rate > 0.:
                 x = drop_connect(x, self.training, self.drop_connect_rate)
-            x += residual
+            x = self.merge_residual(x, residual)
 
         return x
 
